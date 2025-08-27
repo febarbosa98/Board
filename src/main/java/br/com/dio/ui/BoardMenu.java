@@ -1,16 +1,20 @@
 package br.com.dio.ui;
 
+import br.com.dio.dto.BoardColumnInfoDTO;
 import br.com.dio.persistence.entity.BoardColumnEntity;
 import br.com.dio.persistence.entity.BoardEntity;
+import br.com.dio.persistence.entity.CardEntity;
 import br.com.dio.service.BoardColumnQueryService;
 import br.com.dio.service.BoardQueryService;
 import br.com.dio.service.CardQueryService;
+import br.com.dio.service.CardService;
 import lombok.AllArgsConstructor;
 
 import java.sql.SQLException;
 import java.util.Scanner;
 
 import static br.com.dio.persistence.config.ConnectionConfig.getConnection;
+import static br.com.dio.persistence.entity.BoardColumnKindEnum.INITIAL;
 
 @AllArgsConstructor
 public class BoardMenu {
@@ -18,7 +22,7 @@ public class BoardMenu {
     private final Scanner scanner = new Scanner(System.in).useDelimiter("\n");
     public void execute() {
     try{
-            System.out.printf("Bem vindo ao board %s, selecione a operacao desejada", entity.getId());
+            System.out.printf("Bem vindo ao board %s, selecione a operacao desejada\n", entity.getId());
             var option = -1;
             while (option != 9) {
                 System.out.println("1 - Criar um card");
@@ -53,19 +57,47 @@ public class BoardMenu {
         }
     }
 
-    private void createCad() {
+    private void createCad() throws SQLException {
+        var card = new CardEntity();
+        System.out.println("Informe o titulo do card");
+        card.setTitle(scanner.next());
+        System.out.println("Informe a descricao do card");
+        card.setDescription(scanner.next());
+        card.setBoardColumn(entity.getInitialColumn());
+        try (var connection = getConnection()){
+            new CardService(connection).insert(card);
+        }
+
     }
 
-    private void moveCardToNextColumn() {
+    private void moveCardToNextColumn() throws SQLException  {
+        System.out.println("Informe o id do card que deseja mover para a proxima coluna");
+        var cardId = scanner.nextLong();
+        var boardColumnsInfo = entity.getBoardColumns().stream().map(bc -> new BoardColumnInfoDTO(bc.getId(), bc.getOrder(),bc.getKind())).toList();
+        try (var connection = getConnection()){
+            new CardService(connection).moveToNextColumn(cardId, boardColumnsInfo);
+        }catch (RuntimeException ex){
+            System.out.println(ex.getMessage());
+        }
     }
 
-    private void blockCard() {
+    private void blockCard() throws SQLException  {
     }
 
-    private void unblockCard() {
+    private void unblockCard() throws SQLException {
     }
 
-    private void cancelCard() {
+    private void cancelCard()throws SQLException  {
+        System.out.println("Informe o id do card que deseja mover para a coluna de cancelamento");
+        var cardId = scanner.nextLong();
+        var cancelColumn = entity.getCancelColumn();
+        var boardColumnsInfo = entity.getBoardColumns().stream().map(bc -> new BoardColumnInfoDTO(bc.getId(), bc.getOrder(),bc.getKind())).toList();
+
+        try (var connection = getConnection()){
+            new CardService(connection).cancel(cardId,cancelColumn.getId() ,boardColumnsInfo);
+        }catch (RuntimeException ex){
+            System.out.println(ex.getMessage());
+        }
     }
 
     private void showBoard() throws SQLException {
@@ -93,7 +125,7 @@ public class BoardMenu {
            var column = new BoardColumnQueryService(connection).findById(selectedColumn);
            column.ifPresent(co -> {
                System.out.printf("Coluna %s tipo %s\n", co.getName(), co.getKind());
-               co.getCards().forEach(ca -> System.out.printf("Card %s - %s\nDescricao: %s", ca.getId(), ca.getTitle(), ca.getDescription()));
+               co.getCards().forEach(ca -> System.out.printf("Card %s - %s\nDescricao: %s\n", ca.getId(), ca.getTitle(), ca.getDescription()));
            });
 
         }
